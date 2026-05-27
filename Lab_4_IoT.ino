@@ -1,107 +1,103 @@
-#include <AdafruitIO.h> // tiến hành thêm thư viện AdafruitIO.h vào
-#include <AdafruitIO_WiFi.h>  // Khai báo thư viện AdafruitIO_WiFi.h để kết nối đến server.
+#include <AdafruitIO.h>       // Include the Adafruit IO library.
+#include <AdafruitIO_WiFi.h>  // Include the Adafruit IO Wi-Fi connection library.
 
-#define IO_USERNAME  "giangcutebhc2"
-#define IO_KEY       "aio_kZkU83AHREenNPBP8HObmVnSnYa7"
+#define IO_USERNAME  "*********" // Adafruit IO username placeholder. Replace with your actual username before uploading.
+#define IO_KEY       "*********" // Adafruit IO key placeholder. Replace with your actual key before uploading.
 
-#define WIFI_SSID "Camelot" // Tên wifi để ESP 32 kết nối vào và truy cập đến server.
-#define WIFI_PASS "21012002"  // Pass wifi
+#define WIFI_SSID "*****" // Wi-Fi network name used by the ESP32 to access the server.
+#define WIFI_PASS "****"    // Wi-Fi password placeholder. Replace with the real password before uploading.
 
-AdafruitIO_WiFi io(IO_USERNAME, IO_KEY, WIFI_SSID, WIFI_PASS);  // Gọi hàm kết nối đến server.
-#define LED_PIN 2 // LED on Board là GPIO 2.
+AdafruitIO_WiFi io(IO_USERNAME, IO_KEY, WIFI_SSID, WIFI_PASS);  // Create the Adafruit IO Wi-Fi client.
+#define LED_PIN 2 // The on-board LED is connected to GPIO 2.
 
-// set up the feed 
-AdafruitIO_Feed *digital = io.feed("button"); // khai báo con trỏ digital để chứ dữ liệu lấy từ feed của server.
+// Set up the Adafruit IO feeds.
+AdafruitIO_Feed *digital = io.feed("button"); // Feed used to receive button data from Adafruit IO.
 AdafruitIO_Feed *temp = io.feed("temp");
 AdafruitIO_Feed *humi = io.feed("humi");
 
-// thu vien dht11
+// DHT11 sensor library.
 #include <DHT.h>
 
-#define DHTPIN 27 //Connect Out pin to D2 in NODE MCU
-#define DHTTYPE DHT11  
+#define DHTPIN 27 // Connect the DHT11 output pin to GPIO 27 on the ESP32.
+#define DHTTYPE DHT11
 DHT dht(DHTPIN, DHTTYPE);
 
-//delay
-static uint32_t oldtime  = millis();
+// Timer used to control the sensor upload interval.
+static uint32_t oldtime = millis();
 
-// doc du lieu dht 11
+// Read DHT11 data and send it to Adafruit IO.
 void sendSensor()
 {
-  float h = dht.readHumidity();  //đọc độ ẩm
-  float t = dht.readTemperature();  // đọc nhiệt độ
+  float h = dht.readHumidity();     // Read humidity.
+  float t = dht.readTemperature();  // Read temperature.
 
   if (isnan(h) || isnan(t)) {
     Serial.println("Failed to read from DHT sensor!");
     return;
   }
+
   // You can send any value at any time.
-  // Please don't send more that 10 values per second.
-    Serial.print("Temperature : ");
-    Serial.print(t);
-    Serial.print("    Humidity : ");
-    Serial.println(h);
+  // Please do not send more than 10 values per second.
+  Serial.print("Temperature : ");
+  Serial.print(t);
+  Serial.print("    Humidity : ");
+  Serial.println(h);
 
-
-    temp->save(t);
-    humi->save(h);
+  temp->save(t);
+  humi->save(h);
 }
 
 void setup() {
-  // set chân số 2, chân led là output
-  pinMode(LED_PIN, OUTPUT); // Khai báo output.
- 
-  // start the serial connection
-  Serial.begin(115200); 
- 
-  // wait for serial monitor to open
+  // Set the on-board LED pin as an output.
+  pinMode(LED_PIN, OUTPUT);
+
+  // Start the serial connection.
+  Serial.begin(115200);
+
+  // Wait for the serial monitor to open.
   while(! Serial);
- 
-  // connect to io.adafruit.com
-  Serial.print("Connecting to Adafruit IO"); // tiến hành kết nối đến server.
-  io.connect(); // Gọi hàm kết nối
- 
-  // wait for a connection
+
+  // Connect to io.adafruit.com.
+  Serial.print("Connecting to Adafruit IO");
+  io.connect();
+
+  // Wait until the connection is established.
   while(io.status() < AIO_CONNECTED) {
-    Serial.print("."); // Nếu chưa kết nối được đến server sẽ tiến hành xuất ra màn hình đấu "."
+    Serial.print(".");
     delay(500);
   }
- 
-  // we are connected
+
+  // Print the connection status after a successful connection.
   Serial.println();
-  Serial.println(io.statusText()); // Nếu đã kết nối thành công tiến hành xuất ra màn hình trạng thái.
-  // set up a message handler for the 'digital' feed.
-  // the handleMessage function (defined below) will be called whenever a message is received from adafruit io.
-  digital->get(); // lấy dữ liệu từ feed 'digital' của server.
-  digital->onMessage(handleMessage); // Gọi hàm đọc dữ liệu và tiến hành điều khiển led và xuất ra trạng thái trên màn hình.
+  Serial.println(io.statusText());
+
+  // Set up a message handler for the "button" feed.
+  // The handleMessage function is called whenever a message is received from Adafruit IO.
+  digital->get();
+  digital->onMessage(handleMessage);
   dht.begin();
 }
 
 void loop() {
-  io.run(); // gọi hàm Run.
-  if  (millis()-oldtime >  20000)
-    {
-      sendSensor();
-      oldtime = millis();
-    }
+  io.run();
+
+  if (millis() - oldtime > 20000)
+  {
+    sendSensor();
+    oldtime = millis();
+  }
 }
 
-// this function is called whenever an 'digital' feed message
-// is received from Adafruit IO. it was attached to
-// the 'digital' feed in the setup() function above.
-void handleMessage(AdafruitIO_Data *data) { // hàm handleMessage để đọc dữ liệu.
-
- // xuất ra màn hình trạng thái của nút nhấn trên feed vừa đọc được.
+// This function is called whenever a "button" feed message is received from Adafruit IO.
+void handleMessage(AdafruitIO_Data *data) {
+  // Print the received button state to the serial monitor.
   Serial.print("received <- ");
- 
+
   if(data->toPinLevel() == HIGH)
     Serial.println("HIGH");
   else
     Serial.println("LOW");
 
- // cài đặt trạng thái bật tắt led on board tương ứng với nút nhấn.
-  // write the current state to the led
+  // Update the on-board LED according to the button state.
   digitalWrite(LED_PIN, data->toPinLevel());
- 
 }
-
